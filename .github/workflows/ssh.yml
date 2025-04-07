@@ -12,50 +12,54 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Add SSH Key
+    - name: Setup SSH
       uses: webfactory/ssh-agent@v0.7.0
       with:
         ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+    - name: Test SSH Connection
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+        ssh -o StrictHostKeyChecking=no -p 22 ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} "echo 'SSH connection successful!'"
 
     - name: Configure Server
       uses: appleboy/ssh-action@v0.1.10
       with:
         host: ${{ secrets.SERVER_HOST }}
         username: ${{ secrets.SERVER_USERNAME }}
-        port: 22  # Initial connection on default port
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: 22
+        script_timeout: 10m
         script: |
           set -e
           echo "Starting server configuration..."
           
-          # System updates
+          # Обновление системы
           sudo apt-get update -qq
           sudo apt-get upgrade -y -qq
           sudo apt-get install -y -qq mc htop fail2ban
           
-          # SSH Configuration
+          # Настройка SSH
           echo "Configuring SSH..."
           sudo sed -i 's/#Port 22/Port 49009/g' /etc/ssh/sshd_config
           sudo sed -i 's/Port 22/Port 49009/g' /etc/ssh/sshd_config
-          
-          # Ensure SSH key authentication remains enabled
-          sudo sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/g' /etc/ssh/sshd_config
-          sudo sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config
-          
           sudo systemctl restart sshd
           
-          # BBR Configuration
+          # Настройка BBR
           echo "Configuring BBR..."
           echo "net.core.default_qdisc=fq" | sudo tee -a /etc/sysctl.conf
           echo "net.ipv4.tcp_congestion_control=bbr" | sudo tee -a /etc/sysctl.conf
           sudo sysctl -p
           
-          # fail2ban Configuration
+          # Настройка fail2ban
           echo "Configuring fail2ban..."
-          sudo sed -i 's/backend = auto/backend = systemd/g' /etc/fail2ban/jail.conf
+          sudo cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+          sudo sed -i 's/backend = auto/backend = systemd/g' /etc/fail2ban/jail.local
           sudo systemctl restart fail2ban
           
-          echo "Waiting 10 seconds for SSH to restart..."
-          sleep 10
           echo "Server configuration completed successfully!"
 
     - name: Verify Configuration
@@ -63,15 +67,15 @@ jobs:
       with:
         host: ${{ secrets.SERVER_HOST }}
         username: ${{ secrets.SERVER_USERNAME }}
-        port: 49009  # Now using new port
-        key: ${{ secrets.SSH_PRIVATE_KEY }}  # Explicitly provide key for new connection
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: 49009
         script: |
           echo "BBR Status:"
-          sudo sysctl net.ipv4.tcp_available_congestion_control
-          sudo sysctl net.ipv4.tcp_congestion_control
+          sysctl net.ipv4.tcp_available_congestion_control
+          sysctl net.ipv4.tcp_congestion_control
           
           echo "SSH Port:"
-          sudo ss -tulnp | grep ssh
+          ss -tulnp | grep ssh
           
           echo "fail2ban Status:"
-          sudo systemctl status fail2ban --no-pager
+          systemctl status fail2ban --no-pager
