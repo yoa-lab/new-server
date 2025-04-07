@@ -38,27 +38,27 @@ jobs:
           echo "Starting server configuration..."
           
           # Обновление системы
-          sudo apt-get update -qq
-          sudo apt-get upgrade -y -qq
-          sudo apt-get install -y -qq mc htop fail2ban
+          apt-get update -qq
+          apt-get upgrade -y -qq
+          apt-get install -y -qq mc htop fail2ban
           
           # Настройка SSH
           echo "Configuring SSH..."
-          sudo sed -i 's/#Port 22/Port 49009/g' /etc/ssh/sshd_config
-          sudo sed -i 's/Port 22/Port 49009/g' /etc/ssh/sshd_config
-          sudo systemctl restart sshd
+          sed -i 's/#Port 22/Port 49009/g' /etc/ssh/sshd_config
+          sed -i 's/Port 22/Port 49009/g' /etc/ssh/sshd_config
+          systemctl restart sshd
           
           # Настройка BBR
           echo "Configuring BBR..."
-          echo "net.core.default_qdisc=fq" | sudo tee -a /etc/sysctl.conf
-          echo "net.ipv4.tcp_congestion_control=bbr" | sudo tee -a /etc/sysctl.conf
-          sudo sysctl -p
+          echo "net.core.default_qdisc=fq" | tee -a /etc/sysctl.conf
+          echo "net.ipv4.tcp_congestion_control=bbr" | tee -a /etc/sysctl.conf
+          sysctl -p
           
           # Настройка fail2ban
           echo "Configuring fail2ban..."
-          sudo cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
-          sudo sed -i 's/backend = auto/backend = systemd/g' /etc/fail2ban/jail.local
-          sudo systemctl restart fail2ban
+          cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+          sed -i 's/backend = auto/backend = systemd/g' /etc/fail2ban/jail.local
+          systemctl restart fail2ban
           
           echo "Server configuration completed successfully!"
 
