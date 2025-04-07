@@ -10,45 +10,52 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3  # Используем последнюю версию
+      uses: actions/checkout@v3
 
     - name: Add SSH Key
-      uses: webfactory/ssh-agent@v0.7.0  # Обновленная версия
+      uses: webfactory/ssh-agent@v0.7.0
       with:
         ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
     - name: Configure Server
-      uses: appleboy/ssh-action@v0.1.10  # Используем конкретную версию вместо master
+      uses: appleboy/ssh-action@v0.1.10
       with:
         host: ${{ secrets.SERVER_HOST }}
         username: ${{ secrets.SERVER_USERNAME }}
-        port: 22  # Явно указываем порт
+        port: 22  # Initial connection on default port
         script: |
-          set -e  # Выход при ошибке любой команды
+          set -e
           echo "Starting server configuration..."
           
-          # Обновление системы
+          # System updates
           sudo apt-get update -qq
           sudo apt-get upgrade -y -qq
           sudo apt-get install -y -qq mc htop fail2ban
           
-          # Настройка SSH
+          # SSH Configuration
           echo "Configuring SSH..."
           sudo sed -i 's/#Port 22/Port 49009/g' /etc/ssh/sshd_config
           sudo sed -i 's/Port 22/Port 49009/g' /etc/ssh/sshd_config
+          
+          # Ensure SSH key authentication remains enabled
+          sudo sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/g' /etc/ssh/sshd_config
+          sudo sed -i 's/PubkeyAuthentication no/PubkeyAuthentication yes/g' /etc/ssh/sshd_config
+          
           sudo systemctl restart sshd
           
-          # Настройка BBR
+          # BBR Configuration
           echo "Configuring BBR..."
           echo "net.core.default_qdisc=fq" | sudo tee -a /etc/sysctl.conf
           echo "net.ipv4.tcp_congestion_control=bbr" | sudo tee -a /etc/sysctl.conf
           sudo sysctl -p
           
-          # Настройка fail2ban
+          # fail2ban Configuration
           echo "Configuring fail2ban..."
           sudo sed -i 's/backend = auto/backend = systemd/g' /etc/fail2ban/jail.conf
           sudo systemctl restart fail2ban
           
+          echo "Waiting 10 seconds for SSH to restart..."
+          sleep 10
           echo "Server configuration completed successfully!"
 
     - name: Verify Configuration
@@ -56,7 +63,8 @@ jobs:
       with:
         host: ${{ secrets.SERVER_HOST }}
         username: ${{ secrets.SERVER_USERNAME }}
-        port: 49009  # Используем новый порт после изменения
+        port: 49009  # Now using new port
+        key: ${{ secrets.SSH_PRIVATE_KEY }}  # Explicitly provide key for new connection
         script: |
           echo "BBR Status:"
           sudo sysctl net.ipv4.tcp_available_congestion_control
