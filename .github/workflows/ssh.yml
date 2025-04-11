@@ -1,14 +1,24 @@
 name: Server Configuration via SSH
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:  # Только ручной запуск через интерфейс GitHub
+    inputs:
+      confirm:
+        description: "Are you sure you want to configure the server?"
+        required: true
+        default: "no"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     
     steps:
+    - name: Check confirmation
+      if: github.event.inputs.confirm != 'yes'
+      run: |
+        echo "❌ Deployment canceled. Please confirm by entering 'yes'."
+        exit 1
+
     - name: Checkout repository
       uses: actions/checkout@v3
 
